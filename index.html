@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Monitor Hemodinámico Gasométrico</title>
+    <meta name="theme-color" content="#0056b3">
+    <style>
+        :root {
+            --bg-color: #f4f6f8;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --primary: #0284c7;
+            --primary-hover: #0369a1;
+            --border: #e2e8f0;
+            
+            /* Semáforo */
+            --status-green: #22c55e;
+            --status-yellow: #eab308;
+            --status-red: #ef4444;
+            --status-neutral: #cbd5e1;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #0f172a;
+                --card-bg: #1e293b;
+                --text-main: #f8fafc;
+                --text-muted: #94a3b8;
+                --border: #334155;
+            }
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.5;
+            padding-bottom: 2rem;
+        }
+
+        /* Header */
+        .app-header {
+            background-color: var(--card-bg);
+            padding: 1.5rem 5%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-title { display: flex; align-items: center; gap: 1rem; }
+        .heart-icon { width: 32px; height: 32px; color: var(--status-red); }
+        .header-title h1 { font-size: 1.25rem; font-weight: 600; }
+        .header-title p { font-size: 0.85rem; color: var(--text-muted); }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            border: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-primary:hover { background-color: var(--primary-hover); }
+        .btn-secondary { background-color: transparent; border: 1px solid var(--border); color: var(--text-main); }
+
+        /* Layout */
+        .container { max-width: 1000px; margin: 2rem auto; padding: 0 5%; display: flex; flex-direction: column; gap: 1.5rem; }
+        .card { background-color: var(--card-bg); border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid var(--border); }
+        .card h2 { font-size: 1.1rem; margin-bottom: 1rem; color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+
+        /* Formularios */
+        .grid-inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
+        .input-group { display: flex; flex-direction: column; gap: 0.3rem; }
+        .input-group label { font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
+        .input-group input { 
+            padding: 0.6rem; border: 1px solid var(--border); border-radius: 6px; 
+            background-color: var(--bg-color); color: var(--text-main); font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        .input-group input:focus { outline: none; border-color: var(--primary); }
+        .result-inline { flex-direction: row; justify-content: space-between; align-items: center; border: 1px solid var(--border); padding: 0.6rem; border-radius: 6px; background-color: var(--bg-color); }
+        .result-inline label { margin-bottom: 0; }
+        .result-inline .value-display { font-size: 1.1rem; font-weight: 600; color: var(--primary); }
+
+        /* Panel Resultados */
+        .grid-results { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
+        .result-card {
+            background-color: var(--card-bg); border: 1px solid var(--border); border-radius: 8px;
+            padding: 1rem; display: flex; flex-direction: column; position: relative; overflow: hidden;
+        }
+        .res-title { font-size: 0.8rem; color: var(--text-muted); }
+        .res-value { font-size: 1.25rem; font-weight: 600; margin-top: 0.3rem; }
+        .indicator { position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; background-color: var(--status-neutral); transition: background-color 0.3s; }
+
+        /* Clases de Semáforo */
+        .status-green .indicator { background-color: var(--status-green); }
+        .status-yellow .indicator { background-color: var(--status-yellow); }
+        .status-red .indicator { background-color: var(--status-red); }
+
+        /* Interpretación */
+        .interpretation-panel { border-left: 4px solid var(--primary); }
+        .diag-group { margin-bottom: 1rem; }
+        .diag-group:last-child { margin-bottom: 0; }
+        .diag-group h3 { font-size: 0.95rem; color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .clinical-text { font-size: 1.05rem; font-weight: 500; line-height: 1.6; }
+
+        .hidden { display: none !important; }
+        .error-msg { background-color: rgba(239, 68, 68, 0.1); color: var(--status-red); padding: 0.8rem; border-radius: 6px; margin-bottom: 1rem; font-weight: 500; text-align: center; }
+
+        /* Impresión PDF */
+        @media print {
+            body { background-color: white; color: black; }
+            .app-header button { display: none; }
+            .card { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; margin-bottom: 1rem; }
+            .container { margin: 0; padding: 0; max-width: 100%; gap: 0.5rem; }
+            .indicator { display: none; }
+            .result-card { border-bottom: 2px solid #ddd; }
+        }
+    </style>
+</head>
+<body>
+    <header class="app-header">
+        <div class="header-title">
+            <svg class="heart-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.29 5.02a6.22 6.22 0 0 0-8.49-1.2l-.8.59-.8-.59a6.22 6.22 0 0 0-8.49 1.2 6.53 6.53 0 0 0-.25 8.94l8.3 8.35a1.5 1.5 0 0 0 2.12 0l8.3-8.35a6.53 6.53 0 0 0-.64-8.94Z"></path>
+                <path d="M12 13v-3"></path>
+                <path d="M12 13v3"></path>
+                <path d="M12 13H9"></path>
+                <path d="M12 13h3"></path>
+            </svg>
+            <div>
+                <h1>Monitor Hemodinámico</h1>
+                <p>Análisis Gasométrico y Transporte de O₂</p>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button id="btn-clear" class="btn btn-secondary">Limpiar</button>
+            <button id="btn-pdf" class="btn btn-primary">PDF</button>
+        </div>
+    </header>
+
+    <main class="container">
+        <form id="hemo-form" autocomplete="off">
+            <!-- SECCIÓN 1: DATOS DEL PACIENTE -->
+            <section class="card">
+                <h2>Datos del Paciente</h2>
+                <div class="grid-inputs">
+                    <div class="input-group">
+                        <label for="edad">Edad (años/meses)</label>
+                        <input type="number" id="edad" step="0.1" min="0">
+                    </div>
+                    <div class="input-group">
+                        <label for="peso">Peso (kg)</label>
+                        <!-- Soporte desde neonatos -->
+                        <input type="number" id="peso" step="0.01" min="0.1" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="talla">Talla (cm)</label>
+                        <input type="number" id="talla" step="0.1" min="10" required>
+                    </div>
+                    <div class="input-group result-inline">
+                        <label>Sup. Corporal (Mosteller)</label>
+                        <div class="value-display"><span id="out-sc">0.00</span> m²</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECCIÓN 2: GASOMETRÍA -->
+            <section class="card">
+                <h2>Gasometría</h2>
+                <div class="grid-inputs">
+                    <div class="input-group"><label for="hb">Hemoglobina (g/dL)</label><input type="number" id="hb" step="0.1" required></div>
+                    <div class="input-group"><label for="sao2">SaO₂ (%)</label><input type="number" id="sao2" step="0.1" max="100" required></div>
+                    <div class="input-group"><label for="svo2">SvcO₂ (%)</label><input type="number" id="svo2" step="0.1" max="100" required></div>
+                    <div class="input-group"><label for="pao2">PaO₂ (mmHg)</label><input type="number" id="pao2" step="0.1" required></div>
+                    <div class="input-group"><label for="pvo2">PvO₂ (mmHg)</label><input type="number" id="pvo2" step="0.1" required></div>
+                    <div class="input-group"><label for="paco2">PaCO₂ (mmHg)</label><input type="number" id="paco2" step="0.1" required></div>
+                    <div class="input-group"><label for="pvco2">PvCO₂ (mmHg)</label><input type="number" id="pvco2" step="0.1" required></div>
+                </div>
+            </section>
+
+            <!-- SECCIÓN 3: HEMODINAMIA -->
+            <section class="card">
+                <h2>Hemodinamia</h2>
+                <div class="grid-inputs">
+                    <div class="input-group"><label for="pam">PAM (mmHg)</label><input type="number" id="pam" step="0.1" required></div>
+                    <div class="input-group"><label for="pvc">PVC (mmHg)</label><input type="number" id="pvc" step="0.1" required></div>
+                </div>
+            </section>
+        </form>
+
+        <!-- PANEL DE RESULTADOS -->
+        <section class="results-panel">
+            <h2>Resultados Hemodinámicos</h2>
+            <div id="error-msg" class="error-msg hidden">Faltan datos o se detectó una división por cero en las variables.</div>
+            <div class="grid-results">
+                <div class="result-card" id="card-cao2">
+                    <span class="res-title">CaO₂</span>
+                    <span class="res-value"><span id="res-cao2">-</span> mL/dL</span>
+                    <div class="indicator"></div>
+                </div>
+                <div class="result-card" id="card-cvo2">
+                    <span class="res-title">CvO₂</span>
+                    <span class="res-value"><span id="res-cvo2">-</span> mL/dL</span>
+                    <div class="indicator"></div>
+                </div>
+                <div class="result-card" id="card-dav">
+                    <span class="res-title">D a-v O₂</span>
+                    <span class="res-value"><span id="res-dav">-</span> mL/dL</span>
+                    <div class="indicator"></div>
+                </div>
+                <div class="result-card" id="card-gc">
+                    <span class="res-title">Gasto Cardíaco (GC)</span>
+                    <span class="res-value"><span id="res-gc">-</span> L/min</span>
+                    <div class="indicator"></div>
+                </div>
+                <div class="result-card" id="card-ic">
+                    <span class="res-title">Índice Cardíaco (IC)</span>
+                    <span class="res-value"><span id="res-ic">-</span> L/min/m²</span>
+                    <div class="indicator"></div>
+                </div>
+                <div class="result-card" id="card-rvs">
+                    <span class="res-title">RVS</span>
+                    <span class="res-value"><span id="res-rvs">-</span> dyn·s/cm⁵</span>
+                    <div class="indicator"></div>
+                </div>
+                <div class="result-card" id="card-cpo">
+                    <span class="res-title">CPO</span>
+                    <span class="res-value"><span id="res-cpo">-</span> W</span>
+                    <div class="indicator"></div>
+                </div>
+                <div class="result-card" id="card-do2">
+                    <span class="res-title">DO₂</span>
+                    <span class="res-value"><span id="res-do2">-</span> mL/min</span>
+                    <div class="indicator"></div>
+                </div>
+                <div class="result-card" id="card-vo2">
+                    <span class="res-title">VO₂</span>
+                    <span class="res-value"><span id="res-vo2">-</span> mL/min</span>
+                    <div class="indicator"></div>
+                </div>
+                <div class="result-card" id="card-deltaco2">
+                    <span class="res-title">ΔCO₂ (PvCO₂ - PaCO₂)</span>
+                    <span class="res-value"><span id="res-deltaco2">-</span> mmHg</span>
+                    <div class="indicator"></div>
+                </div>
+                <div class="result-card" id="card-ieo2">
+                    <span class="res-title">IEO₂ (Extracción)</span>
+                    <span class="res-value"><span id="res-ieo2">-</span> %</span>
+                    <div class="indicator"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- INTERPRETACIÓN CLÍNICA -->
+        <section class="card interpretation-panel">
+            <h2>Análisis Clínico</h2>
+            <div class="diag-group">
+                <h3>Diagnóstico Probable</h3>
+                <p id="diag-text" class="clinical-text">Esperando captura de gasometría...</p>
+            </div>
+            <hr style="border:0; border-top:1px solid var(--border); margin: 1rem 0;">
+            <div class="diag-group">
+                <h3>Manejo Sugerido</h3>
+                <p id="interv-text" class="clinical-text">Esperando captura de gasometría...</p>
+            </div>
+        </section>
+
+        <!-- DISCLAIMER LEGAL / MÉDICO -->
+        <footer style="text-align: center; font-size: 0.8rem; color: var(--text-muted); margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border); line-height: 1.6;">
+            <strong>Aviso Legal:</strong> Esta aplicación es una herramienta informática de apoyo al cálculo y no ha sido sometida a validación clínica formal. Los resultados, diagnósticos probables y sugerencias terapéuticas emitidas por el algoritmo pueden contener errores y <strong>en ningún caso sustituyen el juicio clínico del profesional de la salud</strong>, la valoración médica directa ni los protocolos de su institución. Toda decisión sobre el manejo del paciente es responsabilidad exclusiva del médico tratante.
+        </footer>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const inputs = document.querySelectorAll('input');
+            const form = document.getElementById('hemo-form');
+            
+            // Cargar datos guardados en LocalStorage (persistencia offline)
+            const savedData = JSON.parse(localStorage.getItem('hemoData_V1')) || {};
+            inputs.forEach(input => {
+                if (savedData[input.id]) input.value = savedData[input.id];
+                input.addEventListener('input', calculateAll);
+            });
+
+            // Botón Limpiar
+            document.getElementById('btn-clear').addEventListener('click', () => {
+                form.reset();
+                localStorage.removeItem('hemoData_V1');
+                document.getElementById('out-sc').textContent = '0.00';
+                resetOutputs();
+            });
+
+            // Botón PDF (Impresión nativa)
+            document.getElementById('btn-pdf').addEventListener('click', () => window.print());
+
+            calculateAll(); // Ejecutar al iniciar la página
+
+            function calculateAll() {
+                const currentData = {};
+                let allValid = true;
+                let vals = {};
+
+                inputs.forEach(input => {
+                    currentData[input.id] = input.value;
+                    vals[input.id] = parseFloat(input.value);
+                    if (input.required && (isNaN(vals[input.id]) || input.value === '')) {
+                        allValid = false;
+                    }
+                });
+                localStorage.setItem('hemoData_V1', JSON.stringify(currentData));
+
+                if (!allValid) {
+                    resetOutputs();
+                    return;
+                }
+
+                try {
+                    // Cálculo Superficie Corporal (Mosteller)
+                    const sc = Math.sqrt((vals.peso * vals.talla) / 3600);
+                    document.getElementById('out-sc').textContent = sc.toFixed(2);
+
+                    // --- CONVERSIÓN A FRACCIÓN DECIMAL ---
+                    const sao2_decimal = vals.sao2 / 100;
+                    const svo2_decimal = vals.svo2 / 100;
+
+                    // Fórmulas Gasométricas (usando las fracciones decimales)
+                    const cao2 = (vals.hb * 1.34 * sao2_decimal) + (vals.pao2 * 0.003);
+                    const cvo2 = (vals.hb * 1.34 * svo2_decimal) + (vals.pvo2 * 0.003);
+                    
+                    const dav = cao2 - cvo2;
+                    
+                    if (dav === 0) throw new Error("División por cero en D a-v");
+                    
+                    // Ajuste en fórmula de Fick para correcta conversión a L/min
+                    const gc = 250 / (dav * 10); 
+                    const ic = gc / sc;
+                    
+                    if (gc === 0) throw new Error("Gasto cardíaco nulo");
+                    
+                    const rvs = ((vals.pam - vals.pvc) / gc) * 80;
+                    const cpo = (gc * vals.pam) / 451;
+                    
+                    const do2 = cao2 * gc * 10;
+                    const vo2 = dav * gc * 10;
+                    const deltaCO2 = vals.pvco2 - vals.paco2;
+                    const ieo2 = (dav / cao2) * 100;
+                    
+                    const ratioCO2_O2 = dav !== 0 ? (deltaCO2 / dav) : 0;
+
+                    // Actualización UI y Semáforos
+                    updateResult('cao2', cao2, 18, 21);
+                    updateResult('cvo2', cvo2, 12, 15);
+                    updateResult('dav', dav, 3, 5);
+                    updateResult('gc', gc, 4, 8); 
+                    updateResult('ic', ic, 2.5, 4.5);
+                    updateResult('rvs', rvs, 800, 1600);
+                    updateResult('cpo', cpo, 0.53, 10, true); 
+                    updateResult('do2', do2, 0, 0, false, true); 
+                    updateResult('vo2', vo2, 0, 0, false, true); 
+                    updateResult('deltaco2', deltaCO2, 0, 5.9, false, false, deltaCO2 >= 6 ? 'red' : 'green');
+                    updateResult('ieo2', ieo2, 20, 30);
+
+                    // Generar Interpretación Algorítmica (utilizando los porcentajes originales para la lógica clínica)
+                    generateInterpretation(vals.svo2, vals.sao2, vals.hb, deltaCO2, ratioCO2_O2, gc, vals.pam);
+                    
+                    document.getElementById('error-msg').classList.add('hidden');
+
+                } catch (e) {
+                    resetOutputs();
+                    document.getElementById('error-msg').classList.remove('hidden');
+                }
+            }
+
+            function updateResult(id, value, min, max, isHigherBetter = false, skipSemaforo = false, overrideColor = null) {
+                document.getElementById(`res-${id}`).textContent = value.toFixed(1);
+                const card = document.getElementById(`card-${id}`);
+                card.className = 'result-card'; 
+
+                if (skipSemaforo) {
+                    card.classList.add('status-neutral');
+                    return;
+                }
+
+                if (overrideColor) {
+                    card.classList.add(`status-${overrideColor}`);
+                    return;
+                }
+
+                if (value >= min && value <= max) {
+                    card.classList.add('status-green');
+                } else if (isHigherBetter ? value < min : (value < min || value > max)) {
+                    const margin = (max - min) * 0.15;
+                    if (value >= (min - margin) && value <= (max + margin)) {
+                        card.classList.add('status-yellow');
+                    } else {
+                        card.classList.add('status-red');
+                    }
+                }
+            }
+
+            function generateInterpretation(svco2, sao2, hb, deltaCO2, ratio, gc, pam) {
+                let diag = [];
+                let interv = [];
+
+                // Condición general PAM
+                if (pam < 65) diag.push("Hipotensión (Posible Shock / Perfusión de tejidos comprometida)");
+
+                // Algoritmo Central SvcO2 
+                if (svco2 < 70) {
+                    diag.push("Hipoxia Tisular / Perfusión Alterada (SvcO₂ < 70%)");
+                    if (sao2 < 92) {
+                        interv.push("Optimizar oxigenación (Ajustar FiO₂, reclutamiento, PEEP)");
+                    } else if (hb < 8) {
+                        interv.push("Considerar transfusión de hemoderivados (Hb < 8 g/dL)");
+                    } else {
+                        if (deltaCO2 <= 6) {
+                            diag.push("Flujo Sanguíneo Normal pero con Hipoxia Hipóxica");
+                            interv.push("Evaluar disminución de VO₂ (analgesia, sedación, control térmico) o incrementar DO₂");
+                        } else {
+                            diag.push("Flujo Sanguíneo Disminuido / Hipoxia Isquémica");
+                            interv.push("Optimizar Gasto Cardíaco de forma escalonada: <br>1. Precarga (Líquidos)<br>2. Contractilidad (Inotrópicos)<br>3. Poscarga (Vasopresor)<br>4. Frecuencia Cardíaca (Cronotrópicos / Betabloqueador según contexto)");
+                        }
+                    }
+                } else { // SvcO2 >= 70
+                    if (deltaCO2 > 6) {
+                        diag.push("Alteración de la microcirculación (Extracción de O₂ deficiente)");
+                    } else {
+                        diag.push("Perfusión global y extracción de O₂ dentro de parámetros clínicos aceptables");
+                    }
+                    
+                    if (ratio > 1.4) {
+                        diag.push("Metabolismo Anaerobio / Δp(v-a)CO₂ / ΔC(a-v)O₂ > 1.4 (Producción de CO₂ excesiva)");
+                        interv.push("Optimizar Gasto Cardíaco (Evaluar respuesta a líquidos, inotrópicos o vasopresores)");
+                    } else {
+                        interv.push("Sin indicación de intervención hemodinámica urgente por metas gasométricas. Mantener vigilancia.");
+                    }
+                }
+
+                document.getElementById('diag-text').innerHTML = diag.length ? `• ${diag.join('<br>• ')}` : "Sin alteraciones gasométricas francas.";
+                document.getElementById('interv-text').innerHTML = interv.length ? `• ${interv.join('<br>• ')}` : "Continuar manejo actual.";
+            }
+
+            function resetOutputs() {
+                document.querySelectorAll('.res-value span').forEach(el => el.textContent = '-');
+                document.querySelectorAll('.result-card').forEach(el => el.className = 'result-card status-neutral');
+                document.getElementById('diag-text').textContent = 'Esperando captura de gasometría...';
+                document.getElementById('interv-text').textContent = 'Esperando captura de gasometría...';
+            }
+        });
+    </script>
+</body>
+</html>
